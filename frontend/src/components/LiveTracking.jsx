@@ -1,57 +1,76 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useContext } from 'react'
 import { LoadScript, GoogleMap, Marker } from '@react-google-maps/api'
+import { SocketContext } from '../context/SocketContext'
+import { CaptainDataContext } from '../context/CapatainContext'
 
 const containerStyle = {
     width: '100%',
     height: '100%',
 };
 
-const center = {
-    lat: -3.745,
-    lng: -38.523
-};
-
 const LiveTracking = () => {
-    const [ currentPosition, setCurrentPosition ] = useState(center);
+    const [currentPosition, setCurrentPosition] = useState(null);
+    const { socket } = useContext(SocketContext);
+    const { captain } = useContext(CaptainDataContext);
 
     useEffect(() => {
-        navigator.geolocation.getCurrentPosition((position) => {
-            const { latitude, longitude } = position.coords;
-            setCurrentPosition({
-                lat: latitude,
-                lng: longitude
-            });
-        });
+        if (!captain) return;
 
-        const watchId = navigator.geolocation.watchPosition((position) => {
-            const { latitude, longitude } = position.coords;
-            setCurrentPosition({
-                lat: latitude,
-                lng: longitude
-            });
-        });
-
-        return () => navigator.geolocation.clearWatch(watchId);
-    }, []);
-
-    useEffect(() => {
-        const updatePosition = () => {
-            navigator.geolocation.getCurrentPosition((position) => {
-                const { latitude, longitude } = position.coords;
-
-                console.log('Position updated:', latitude, longitude);
-                setCurrentPosition({
-                    lat: latitude,
-                    lng: longitude
-                });
-            });
+        const updateLocation = () => {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        const location = {
+                            lat: position.coords.latitude,
+                            lng: position.coords.longitude
+                        };
+                        setCurrentPosition(location);
+                    },
+                    (error) => {
+                        console.error('Error getting location:', error);
+                    },
+                    {
+                        enableHighAccuracy: true,
+                        timeout: 5000,
+                        maximumAge: 0
+                    }
+                );
+            }
         };
 
-        updatePosition(); // Initial position update
+        // Initial position update
+        updateLocation();
 
-        const intervalId = setInterval(updatePosition, 1000); // Update every 1 seconds
+        // Set up watch position for real-time updates
+        const watchId = navigator.geolocation.watchPosition(
+            (position) => {
+                const location = {
+                    lat: position.coords.latitude,
+                    lng: position.coords.longitude
+                };
+                setCurrentPosition(location);
+            },
+            (error) => {
+                console.error('Error watching position:', error);
+            },
+            {
+                enableHighAccuracy: true,
+                timeout: 5000,
+                maximumAge: 0
+            }
+        );
 
-    }, []);
+        // Cleanup
+        return () => {
+            navigator.geolocation.clearWatch(watchId);
+        };
+    }, [captain]);
+
+    if (!currentPosition) {
+        return <div className="h-full w-full bg-gray-200 flex items-center justify-center">
+            <p>Loading map...</p>
+        </div>;
+    }
 
     return (
         <LoadScript googleMapsApiKey={import.meta.env.VITE_GOOGLE_MAPS_API_KEY}>
@@ -59,11 +78,22 @@ const LiveTracking = () => {
                 mapContainerStyle={containerStyle}
                 center={currentPosition}
                 zoom={15}
+                options={{
+                    zoomControl: true,
+                    streetViewControl: false,
+                    mapTypeControl: false,
+                    fullscreenControl: false,
+                }}
             >
-                <Marker position={currentPosition} />
+                <Marker
+                    position={currentPosition}
+                    icon={{
+                        url: 'https://maps.google.com/mapfiles/ms/icons/blue-dot.png'
+                    }}
+                />
             </GoogleMap>
         </LoadScript>
-    )
-}
+    );
+};
 
-export default LiveTracking
+export default LiveTracking;

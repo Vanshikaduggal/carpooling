@@ -1,30 +1,57 @@
-import React from 'react'
+import React, { useContext } from 'react'
 import { Link } from 'react-router-dom';
 import axios from 'axios'
 import { useNavigate } from 'react-router-dom'
+import { SocketContext } from '../context/SocketContext'
 
 const FinishRide = (props) => {
-
   const navigate = useNavigate()
+  const { socket } = useContext(SocketContext)
 
-    async function endRide() {
-        const response = await axios.post(`${import.meta.env.VITE_BASE_URL}/rides/end-ride`, {
+  async function endRide() {
+    try {
+      // First get the final distance and fare calculation
+      const distanceResponse = await axios.get(`${import.meta.env.VITE_BASE_URL}/rides/calculate-final`, {
+        params: {
+          rideId: props.ride._id
+        },
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('token')}`
+        }
+      });
 
-            rideId: props.ride._id
+      const finalData = distanceResponse.data;
 
+      // End the ride with final calculations
+      const response = await axios.post(`${import.meta.env.VITE_BASE_URL}/rides/end-ride`, {
+        rideId: props.ride._id,
+        finalDistance: finalData.distance,
+        finalFare: finalData.fare
+      }, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('token')}`
+        }
+      })
 
-        }, {
-            headers: {
-                Authorization: `Bearer ${localStorage.getItem('token')}`
-            }
+      if (response.status === 200) {
+        // Emit ride completed event with final data
+        socket.emit('ride-completed', {
+          rideId: props.ride._id,
+          fare: finalData.fare,
+          distance: finalData.distance,
+          timestamp: new Date().toISOString()
         })
 
-        if (response.status === 200) {
-            navigate('/captain-home')
-        }
-
+        // Small delay to ensure socket event is processed
+        setTimeout(() => {
+          navigate('/captain-home')
+        }, 500)
+      }
+    } catch (error) {
+      console.error('Error ending ride:', error)
+      alert('Error completing ride. Please try again.')
     }
-
+  }
 
   return (
     <div>
@@ -47,48 +74,35 @@ const FinishRide = (props) => {
             src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcT3tzGh_8fgG0kuFPxwh_vvey4zzlrDz5nz7A&s"
             alt=""
           />
-          <h2 className="text-lg font-medium">{props.ride?.user.fullname.firstname}</h2>
+          <div>
+            <h2 className="text-lg font-medium">{props.ride?.user.fullname.firstname}</h2>
+            <p className="text-sm text-gray-600">Passenger</p>
+          </div>
         </div>
-        <h5 className="text-lg font-semibold">2.2 KM</h5>
+        <div className="text-right">
+          <h5 className="text-lg font-semibold">{props.ride?.distance || 'Calculating...'} KM</h5>
+          <p className="text-sm text-gray-600">Distance</p>
+        </div>
       </div>
 
-      <div className="flex gap-2 justify-between flex-col items-center">
-        <div className="w-full mt-5">
-          <div className="flex items-center gap-5 p-3 border-b-2">
-            <i className="text-lg ri-map-pin-user-fill"></i>
-            <div>
-              <h3 className="text-lg font-medium">562/11-A</h3>
-              <p className="text-sm -mt-1 text-gray-600">
-              {props.ride?.pickup}
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-5 p-3 border-b-2">
-            <i className="text-lg ri-map-pin-2-fill"></i>
-            <div>
-              <h3 className="text-lg font-medium">562/11-A</h3>
-              <p className="text-sm -mt-1 text-gray-600">
-              {props.ride?.destination}
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-5 p-3">
-            <i className="text-lg ri-currency-line"></i>
-            <div>
-              <h3 className="text-lg font-medium">₹{props.ride?.fare} </h3>
-              <p className="text-sm -mt-1 text-gray-600">Cash Cash</p>
-            </div>
-          </div>
+      <div className="mt-6 p-4 bg-gray-50 rounded-lg">
+        <div className="flex justify-between items-center mb-3">
+          <span className="text-gray-600">Distance</span>
+          <span className="font-medium">{props.ride?.distance || 'Calculating...'} KM</span>
         </div>
-        <div className="mt-10 w-full">
-        
-        <button
+        <div className="flex justify-between items-center mb-3">
+          <span className="text-gray-600">Fare</span>
+          <span className="font-medium">₹{props.ride?.fare || 'Calculating...'}</span>
+        </div>
+      </div>
+
+      <div className="mt-4">
+        <button 
           onClick={endRide}
-          className='w-full mt-5 flex  text-lg justify-center bg-green-600 text-white font-semibold p-3 rounded-lg'
+          className="w-full bg-green-600 text-white font-semibold p-3 rounded-lg"
         >
-          Finish Ride
+          Complete Ride
         </button>
-        </div>
       </div>
     </div>
   )

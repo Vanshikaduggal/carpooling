@@ -8,13 +8,15 @@ import ConfirmRidePopUp from "../components/ConfirmRidePopUp";
 import { SocketContext } from "../context/SocketContext";
 import { CaptainDataContext } from "../context/CapatainContext";
 import axios from 'axios';
+import LiveTracking from "../components/LiveTracking";
 
 const CaptainHome = () => {
   const [ridePopupPanel, setRidePopupPanel] = useState(false);
   const [confirmRidePopupPanel, setConfirmRidePopupPanel] = useState(false);
   const ridePopupPanelRef = useRef(null);
   const confirmRidePopupPanelRef = useRef(null);
-  const [ ride, setRide ] = useState(null);
+  const [ride, setRide] = useState(null);
+  const [currentLocation, setCurrentLocation] = useState(null);
 
   const {socket} =useContext(SocketContext);
   const {captain}=useContext(CaptainDataContext);
@@ -23,53 +25,48 @@ const CaptainHome = () => {
     socket.emit('join', {
         userId: captain._id,
         userType: 'captain'
-    })
+    });
+
     const updateLocation = () => {
         if (navigator.geolocation) {
             navigator.geolocation.getCurrentPosition(position => {
-
+                const location = {
+                    lat: position.coords.latitude,
+                    lng: position.coords.longitude
+                };
+                setCurrentLocation(location);
                 socket.emit('update-location-captain', {
                     userId: captain._id,
-                    location: {
-                        ltd: position.coords.latitude,
-                        lng: position.coords.longitude
-                    }
-                })
-            })
+                    location: location
+                });
+            });
         }
-    }
+    };
 
-    const locationInterval = setInterval(updateLocation, 10000)
-    updateLocation()
+    const locationInterval = setInterval(updateLocation, 10000);
+    updateLocation();
 
-}, [])
+    return () => clearInterval(locationInterval);
+}, [captain._id, socket]);
 
 socket.on('new-ride', (data) => {
-
-    setRide(data)
-    setRidePopupPanel(true)
-
-})
+    setRide(data);
+    setRidePopupPanel(true);
+});
 
 async function confirmRide() {
+    const response = await axios.post(`${import.meta.env.VITE_BASE_URL}/rides/confirm`, {
+        rideId: ride._id,
+        captainId: captain._id,
+    }, {
+        headers: {
+            Authorization: `Bearer ${localStorage.getItem('token')}`
+        }
+    });
 
-  const response = await axios.post(`${import.meta.env.VITE_BASE_URL}/rides/confirm`, {
-
-      rideId: ride._id,
-      captainId: captain._id,
-
-
-  }, {
-      headers: {
-          Authorization: `Bearer ${localStorage.getItem('token')}`
-      }
-  })
-
-  setRidePopupPanel(false)
-  setConfirmRidePopupPanel(true)
-
+    setRidePopupPanel(false);
+    setConfirmRidePopupPanel(true);
 }
-
 
   useGSAP(
     function () {
@@ -103,7 +100,7 @@ async function confirmRide() {
 
   return (
     <div className="h-screen">
-      <div className="fixed p-6 top-0 flex items-center justify-between w-screen">
+      <div className="fixed p-6 top-0 flex items-center justify-between w-screen z-10">
         <img
           className="w-16"
           src="https://upload.wikimedia.org/wikipedia/commons/c/cc/Uber_logo_2018.png"
@@ -111,16 +108,13 @@ async function confirmRide() {
         />
         <Link
           to="/captain-home"
-          className="h-10 w-10 bg-white flex items-center justify-center rounded-full  "
+          className="h-10 w-10 bg-white flex items-center justify-center rounded-full"
         >
           <i className="text-lg font-medium ri-logout-box-r-line"></i>
         </Link>
       </div>
       <div className="h-3/5">
-        <img
-          className="h-full w-full object-cover"
-          src="https://miro.medium.com/v2/resize:fit:1400/0*gwMx05pqII5hbfmX.gif"
-        />
+        <LiveTracking />
       </div>
       <div className="h-2/5 p-6">
         <CaptainDetails />
