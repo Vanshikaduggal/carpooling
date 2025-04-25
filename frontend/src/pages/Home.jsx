@@ -35,6 +35,9 @@ const Home = () => {
   const [fare, setFare] = useState({});
   const [vehicleType, setVehicleType] = useState(null);
   const [ride, setRide] = useState(null);
+  const [isLoadingPickup, setIsLoadingPickup] = useState(false);
+  const [isLoadingDestination, setIsLoadingDestination] = useState(false);
+  const [searchError, setSearchError] = useState(null);
 
   const navigate = useNavigate();
   const { socket } = useContext(SocketContext);
@@ -62,6 +65,14 @@ const Home = () => {
 
   const handlePickupChange = async (e) => {
     setPickup(e.target.value);
+    if (!e.target.value.trim()) {
+      setPickupSuggestions([]);
+      return;
+    }
+
+    setIsLoadingPickup(true);
+    setSearchError(null);
+
     try {
       const response = await axios.get(
         `${import.meta.env.VITE_BASE_URL}/maps/get-suggestions`,
@@ -69,17 +80,44 @@ const Home = () => {
           params: { input: e.target.value },
           headers: {
             Authorization: `Bearer ${localStorage.getItem("token")}`,
+            'Content-Type': 'application/json'
           },
+          timeout: 10000
         }
       );
-      setPickupSuggestions(response.data);
-    } catch {
-      // handle error
+      if (response.data) {
+        setPickupSuggestions(response.data);
+      } else {
+        setPickupSuggestions([]);
+      }
+    } catch (error) {
+      console.error('Error fetching pickup suggestions:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status,
+        config: error.config
+      });
+      setSearchError(
+        error.response?.data?.message || 
+        error.message || 
+        'Failed to fetch location suggestions'
+      );
+      setPickupSuggestions([]);
+    } finally {
+      setIsLoadingPickup(false);
     }
   };
 
   const handleDestinationChange = async (e) => {
     setDestination(e.target.value);
+    if (!e.target.value.trim()) {
+      setDestinationSuggestions([]);
+      return;
+    }
+
+    setIsLoadingDestination(true);
+    setSearchError(null);
+
     try {
       const response = await axios.get(
         `${import.meta.env.VITE_BASE_URL}/maps/get-suggestions`,
@@ -87,12 +125,31 @@ const Home = () => {
           params: { input: e.target.value },
           headers: {
             Authorization: `Bearer ${localStorage.getItem("token")}`,
+            'Content-Type': 'application/json'
           },
+          timeout: 10000
         }
       );
-      setDestinationSuggestions(response.data);
-    } catch {
-      // handle error
+      if (response.data) {
+        setDestinationSuggestions(response.data);
+      } else {
+        setDestinationSuggestions([]);
+      }
+    } catch (error) {
+      console.error('Error fetching destination suggestions:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status,
+        config: error.config
+      });
+      setSearchError(
+        error.response?.data?.message || 
+        error.message || 
+        'Failed to fetch location suggestions'
+      );
+      setDestinationSuggestions([]);
+    } finally {
+      setIsLoadingDestination(false);
     }
   };
 
@@ -240,32 +297,50 @@ const Home = () => {
             }}
           >
             <div className="line absolute h-16 w-1 -translate-y-1/2 top-[50%] left-5 bg-gray-700 rounded-full"></div>
-            <input
-              onClick={() => {
-                setPanelOpen(true);
-                setActiveField("pickup");
-              }}
-              value={pickup}
-              onChange={handlePickupChange}
-              className="bg-[#eee] px-12 py-2 text-lg rounded-lg w-full"
-              type="text"
-              placeholder="Add a pick-up location"
-            />
-            <input
-              onClick={() => {
-                setPanelOpen(true);
-                setActiveField("destination");
-              }}
-              value={destination}
-              onChange={handleDestinationChange}
-              className="bg-[#eee] px-12 py-2 text-lg rounded-lg w-full mt-3"
-              type="text"
-              placeholder="Enter your destination"
-            />
+            <div className="relative">
+              <input
+                onClick={() => {
+                  setPanelOpen(true);
+                  setActiveField("pickup");
+                }}
+                value={pickup}
+                onChange={handlePickupChange}
+                className="bg-[#eee] px-12 py-2 text-lg rounded-lg w-full"
+                type="text"
+                placeholder="Add a pick-up location"
+              />
+              {isLoadingPickup && (
+                <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                  <i className="ri-loader-4-line animate-spin"></i>
+                </div>
+              )}
+            </div>
+            <div className="relative mt-3">
+              <input
+                onClick={() => {
+                  setPanelOpen(true);
+                  setActiveField("destination");
+                }}
+                value={destination}
+                onChange={handleDestinationChange}
+                className="bg-[#eee] px-12 py-2 text-lg rounded-lg w-full"
+                type="text"
+                placeholder="Enter your destination"
+              />
+              {isLoadingDestination && (
+                <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                  <i className="ri-loader-4-line animate-spin"></i>
+                </div>
+              )}
+            </div>
+            {searchError && (
+              <p className="text-red-500 text-sm mt-2">{searchError}</p>
+            )}
           </form>
           <button
             onClick={findTrip}
-            className="bg-black text-white px-4 py-2 rounded-lg mt-3 w-full"
+            disabled={!pickup || !destination}
+            className={`bg-black text-white px-4 py-2 rounded-lg mt-3 w-full ${(!pickup || !destination) ? 'opacity-50 cursor-not-allowed' : ''}`}
           >
             Find Trip
           </button>
