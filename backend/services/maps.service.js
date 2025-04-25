@@ -56,18 +56,25 @@ module.exports.getAutoCompleteSuggestions = async (input) => {
     }
 
     const apiKey = process.env.GOOGLE_MAPS_API;
-    const url = `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(input)}&key=${apiKey}`;
+    if (!apiKey) {
+        throw new Error('Google Maps API key is not configured');
+    }
+
+    const url = `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(input)}&types=address&components=country:in&key=${apiKey}`;
 
     try {
         const response = await axios.get(url);
         if (response.data.status === 'OK') {
             return response.data.predictions.map(prediction => prediction.description).filter(value => value);
+        } else if (response.data.status === 'ZERO_RESULTS') {
+            return [];
         } else {
-            throw new Error('Unable to fetch suggestions');
+            console.error('Google Places API error:', response.data.status);
+            throw new Error(`Google Places API error: ${response.data.status}`);
         }
     } catch (err) {
-        console.error(err);
-        throw err;
+        console.error('Error fetching suggestions:', err);
+        throw new Error('Failed to fetch location suggestions');
     }
 }
 
