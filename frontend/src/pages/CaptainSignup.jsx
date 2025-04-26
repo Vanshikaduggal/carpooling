@@ -179,8 +179,12 @@ const CaptainSignup = () => {
                             className='bg-[#eeeeee] w-1/2 rounded-lg px-4 py-2 border text-lg placeholder:text-base'
                             type="number"
                             placeholder='Vehicle Capacity'
+                            min={1}
                             value={vehicleCapacity}
-                            onChange={(e) => setVehicleCapacity(e.target.value)}
+                            onChange={(e) => {
+                                const val = Math.max(1, parseInt(e.target.value) || 1);
+                                setVehicleCapacity(val);
+                            }}
                         />
                         <select
                             required
